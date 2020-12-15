@@ -18,6 +18,7 @@
 #define USE_OPENCV
 #include "bm_wrapper.hpp"
 #include "bmruntime_interface.h"
+#include "zh_log.h"
 
 using std::vector;
 
@@ -45,10 +46,12 @@ class YOLOV5
 public:
     YOLOV5(const std::string bmodel);
     ~YOLOV5();
-    void preForward(std::vector<cv::Mat>& images);
+    void preForward(vector<cv::Mat>& images);
     void forward();
     vector<vector<DetectRect>> postForward();
     void drawResult();
+    int getBatchSize();
+    void writeBatchResultImg(std::string prefix);
 
 private:
     void preprocess(bm_image& in, bm_image& out);
@@ -99,7 +102,8 @@ private:
 
     /* draw */
     vector<cv::Scalar> colors_;
-    vector<std::string> class_names_{"yw_gkxfw", "yw_nc"};
+    vector<std::string> class_names_{"yw_gkxfw",
+                                     "yw_nc"};
 };
 
 

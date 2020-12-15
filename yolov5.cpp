@@ -9,7 +9,6 @@
  */
 
 #include <stdlib.h>
-#include <iostream>
 #include <algorithm>
 #include "yolov5.h"
 
@@ -27,18 +26,18 @@ YOLOV5::YOLOV5(const std::string bmodel)
     bool flag = bmrt_load_bmodel(p_bmrt_, bmodel.c_str());
     if (!flag)
     {
-        std::cout << "ERROR: failed to load bmodel[" << bmodel << "] " << std::endl;
+        ERROR << "ERROR: failed to load bmodel[" << bmodel << "] !!! ";
         exit(-1);
     }
     bmrt_get_network_names(p_bmrt_, &net_names_);
-    std::cout << "> Load model " << net_names_[0] << " successfully" << std::endl;
+    INFO << "> Load model " << net_names_[0] << " successfully" ;
 
     /* more info pelase refer to bm_net_info_t in bmdef.h */
     auto net_info = bmrt_get_network_info(p_bmrt_, net_names_[0]);
-    std::cout << "> input scale:"   << net_info->input_scales[0]  << std::endl;
-    std::cout << "> output scale:"  << net_info->output_scales[0] << std::endl;
-    std::cout << "> input number:"  << net_info->input_num        << std::endl;
-    std::cout << "> output number:" << net_info->output_num       << std::endl;
+    DEBUG << "> input scale:"   << net_info->input_scales[0]  ;
+    DEBUG << "> output scale:"  << net_info->output_scales[0] ;
+    DEBUG << "> input number:"  << net_info->input_num        ;
+    DEBUG << "> output number:" << net_info->output_num       ;
     bm_image_data_format_ext data_type = DATA_TYPE_EXT_1N_BYTE_SIGNED;
 
     /* TODO: get class number from net_info */
@@ -49,7 +48,7 @@ YOLOV5::YOLOV5(const std::string bmodel)
         threshold_prob_ = 0.5;
         threshold_nms_ = 0.45;
         int8_flag_ = false;
-        std::cout << "> input_dtypes is fp32 model" << std::endl;
+        DEBUG << "> input_dtypes is fp32 model";
         data_type = DATA_TYPE_EXT_FLOAT32;
     }
     else
@@ -57,7 +56,7 @@ YOLOV5::YOLOV5(const std::string bmodel)
         threshold_prob_ = 0.2;
         threshold_nms_ = 0.45;
         int8_flag_ = true;
-        std::cout << "> input_dtypes is int8 model" << std::endl;
+        DEBUG << "> input_dtypes is int8 model";
     }
     bmrt_print_network_info(net_info);
 
@@ -68,14 +67,14 @@ YOLOV5::YOLOV5(const std::string bmodel)
     auto &input_shape = net_info->stages[0].input_shapes[0];
     /* malloc input and output system memory for preprocess data */
     int count = bmrt_shape_count(&input_shape);
-    std::cout << "> input count:" << count << std::endl;
+    DEBUG << "> input count:" << count;
 
     output_num_ = net_info->output_num;
     for (int i = 0; i < output_num_; i++)
     {
         auto &output_shape = net_info->stages[0].output_shapes[i];
         count = bmrt_shape_count(&output_shape);
-        std::cout << "> output " << i << " count:" << count << std::endl;
+        DEBUG << "> output " << i << " count:" << count;
 
         float* out = new float[count];
         outputs_.push_back(out);
@@ -112,18 +111,28 @@ YOLOV5::YOLOV5(const std::string bmodel)
                         scaled_inputs_, batch_size_);
     if (BM_SUCCESS != ret)
     {
-        std::cerr << "ERROR: bm_image_create_batch failed" << std::endl;
+        ERROR << "ERROR: bm_image_create_batch failed !!!";
         exit(1);
     }
 
-    // for draw
+    // for draw, random color for each class
     cv::RNG rng(cv::getTickCount());
     for(size_t j=0; j<classes_num_; j++)
     {
-        colors_.push_back(cv::Scalar(rng.uniform(0,255),
-                                     rng.uniform(0,255),
-                                     rng.uniform(0,255)));
+        colors_.push_back(cv::Scalar(rng.uniform(0, 255),
+                                     rng.uniform(0, 255),
+                                     rng.uniform(0, 255)));
     }
+
+    INFO << "\n-------- -------- \n > CONFIGS : batch = " << batch_size_
+         << "\n net_w = " << net_w_
+         << "\n net_h = " << net_h_
+         << "\n channel = " << num_channels_
+         << "\n classes_num = " << classes_num_
+         << "\n class_names_ = " << class_names_
+         << "\n anchor_num = " << anchor_num_
+         << "\n anchors = " << anchors_
+         << "\n-------- -------- ";
 }
 
 YOLOV5::~YOLOV5()
@@ -150,7 +159,7 @@ void YOLOV5::preprocess(bm_image& in, bm_image& out)
     bmcv_image_vpp_convert(bm_handle_, 1, in, &out, &crop_rect);
 }
 
-void YOLOV5::preForward(std::vector<cv::Mat>& images)
+void YOLOV5::preForward(vector<cv::Mat>& images)
 {
     images_.clear();
     all_dets_.clear();
@@ -186,7 +195,7 @@ void YOLOV5::forward()
                             reinterpret_cast<const char*>(net_names_[0]));
     if (!res)
     {
-        std::cout << "ERROR : inference failed!!"<< std::endl;
+        ERROR << "ERROR : inference failed!!";
         exit(1);
     }
 }
@@ -205,7 +214,7 @@ vector<vector<DetectRect>> YOLOV5::postForward()
         all_dets_.push_back(dets_);
     }
     printDets();
-    drawResult();
+    // drawResult();
     return all_dets_;
 }
 
@@ -216,7 +225,7 @@ void YOLOV5::decodeResult(float* data, int yolo_idx, int frameWidth, int frameHe
     int stride_w = int(net_w_ / fm_size_[2 * yolo_idx + 1]);   //下采样倍率，注意这里的w/h可能是反的
     int stride_h = int(net_h_ / fm_size_[2 * yolo_idx]);
     int fm_area_ = fm_size_[2 * yolo_idx] * fm_size_[2 * yolo_idx + 1];
-    // std::cout << "fm_area_ = "<<fm_area_<<std::endl;
+    // INFO << "fm_area_ = "<<fm_area_;
     for(size_t c = 0; c < anchor_num_; c++)
     {
         const float* ptr = data + output_sizes_[yolo_idx] / anchor_num_ * c;
@@ -225,7 +234,7 @@ void YOLOV5::decodeResult(float* data, int yolo_idx, int frameWidth, int frameHe
             float score = sigmoid(ptr[4]);
             if(score > 0.3)
             {
-                // std::cout << "score : " << score << std::endl;
+                // INFO << "score : " << score ;
                 // vector<float> det(6);
                 DetectRect det;
                 // (int)(net_w_ / stride_w)) 可以用 fm_size_ 代替
@@ -295,20 +304,19 @@ void YOLOV5::nonMaxSuppression()
 
 void YOLOV5::printDets()
 {
-    std::cout << " >>>> Detection results: " << std::endl;
+    INFO << " >>>> Detection results: " ;
     for(size_t j=0; j < all_dets_.size(); j++)
     {
-        std::cout << " >>>> The " << j + 1 << "th image: " << std::endl;
+        INFO << " >>>> The " << j + 1 << "th image: " ;
         vector<DetectRect> det = all_dets_[j];
         for(size_t i=0; i<det.size(); i++)
         {
-            std::cout << " class = "  << det[i].class_id
-                      << " score = "  << det[i].score
-                      << " left = "   << det[i].left
-                      << " top = "    << det[i].top
-                      << " right = "  << det[i].right
-                      << " bottom = " << det[i].bottom
-                      << std::endl;
+            INFO << " class = "  << class_names_[det[i].class_id]
+                 << " score = "  << det[i].score
+                 << " left = "   << det[i].left
+                 << " top = "    << det[i].top
+                 << " right = "  << det[i].right
+                 << " bottom = " << det[i].bottom;
         }
     }
 
@@ -318,7 +326,7 @@ void YOLOV5::drawResult()
 {
     if(all_dets_.size() != images_.size())
     {
-        std::cout << "result.size != images.size !!! " << std::endl;
+        WARN << "result.size != images.size !!! " ;
         return;
     }
     for(size_t j = 0; j < all_dets_.size(); j++)
@@ -349,6 +357,20 @@ void YOLOV5::drawResult()
                         tf,
                         cv::LINE_AA);
         }
-        cv::imwrite(cv::format("res_%ld.jpg", j), images_[j]);
+        // cv::imwrite(cv::format("res_%ld.jpg", j), images_[j]);
     }
+}
+
+void YOLOV5::writeBatchResultImg(std::string prefix)
+{
+    drawResult();
+    for(size_t i=0; i<images_.size(); i++)
+    {
+        cv::imwrite(prefix + cv::format("_%ld.jpg", i), images_[i]);
+    }
+}
+
+int YOLOV5::getBatchSize()
+{
+    return batch_size_;
 }

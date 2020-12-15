@@ -8,63 +8,85 @@
  * @zhanghao@yijiahe.com
  */
 
-#include <boost/filesystem.hpp>
+#include <dirent.h>
 #include "yolov5.h"
 
-namespace fs = boost::filesystem;
 using namespace std;
+
+void detect(YOLOV5 &net, vector<cv::Mat>& images)
+{
+    if(net.getBatchSize() != int(images.size()))
+    {
+        ERROR << "net size != images.size !!! ";
+        return;
+    }
+    net.preForward(images);
+    net.forward();
+    vector<vector<DetectRect>> results = net.postForward();
+}
+
+int read_files_in_dir(const char *p_dir_name, std::vector<std::string> &file_names)
+{
+    DIR *p_dir = opendir(p_dir_name);
+    if (p_dir == nullptr)
+    {
+        return -1;
+    }
+
+    struct dirent* p_file = nullptr;
+    while ((p_file = readdir(p_dir)) != nullptr)
+    {
+        if (strcmp(p_file->d_name, ".") != 0 && strcmp(p_file->d_name, "..") != 0)
+        {
+            std::string cur_file_name(p_file->d_name);
+            file_names.push_back(cur_file_name);
+        }
+    }
+
+    closedir(p_dir);
+    return 0;
+}
 
 int main(int argc, char **argv)
 {
-    cout.setf(ios::fixed);
-    if (argc < 4)
+    FNLog::FastStartDefaultLogger();
+    INFO << "log init success";
+
+    if (argc < 3)
     {
-        cout << "USAGE:" << endl;
-        cout << "  " << argv[0] << " image <image list> <bmodel file> " << endl;
-        cout << "  " << argv[0] << " video <video url>  <bmodel file> " << endl;
+        ERROR << "USAGE:";
+        WARN << "  " << argv[0] << " <image folder> <bmodel file> ";
         exit(1);
     }
 
-    bool is_video = false;
-    if (strcmp(argv[1], "video") == 0)
+    const char * image_folder = argv[1];
+    std::vector<std::string> file_names;
+    if (read_files_in_dir(image_folder, file_names) < 0)
     {
-        is_video = true;
-    }
-    else if (strcmp(argv[1], "image") == 0)
-    {
-        is_video = false;
-    }
-    else
-    {
-        cout << "Wrong input type, neither image nor video." << endl;
-        exit(1);
+        ERROR << "read files in dir failed.";
+        return -1;
     }
 
-    string image_list = argv[2];
-    if (!is_video && !fs::exists(image_list))
+    string bmodel_file = argv[2];
+    if (access(bmodel_file.c_str(), F_OK ) == -1)
     {
-        cout << "Cannot find input image file." << endl;
-        exit(1);
-    }
-
-    string bmodel_file = argv[3];
-    if (!fs::exists(bmodel_file))
-    {
-        cout << "Cannot find valid model file." << endl;
+        ERROR << "Cannot find valid model file.";
         exit(1);
     }
 
     YOLOV5 net(bmodel_file);
+    int batch_size = net.getBatchSize();
 
-    for(int j=0; j<1000; j++)
+    for(int i=0; i < int(file_names.size()/batch_size); i++)
     {
-        cv::Mat img = cv::imread("test.jpg", cv::IMREAD_COLOR, 0);
         vector<cv::Mat> batch_imgs;
-        batch_imgs.push_back(img);
-
-        net.preForward(batch_imgs);
-        net.forward();
-        net.postForward();
+        for(int j=0; j<batch_size; j++)
+        {
+            cv::Mat img = cv::imread(string(image_folder) + "/" + file_names[i * batch_size + j], cv::IMREAD_COLOR, 0);
+            batch_imgs.push_back(img);
+        }
+        detect(net, batch_imgs);
+        net.writeBatchResultImg("res/" + to_string(i));
     }
 
 }
