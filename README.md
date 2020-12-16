@@ -39,3 +39,22 @@ bitmain bm1684 inference code of YoloV5...
 	
 5、测试
 	bmrt_test --bmodel YJH/cabinet/Bmodel/compilation.bmodel --loopnum 10
+
+
+# 代码编译：
+
+1、编译
+
+    进入docker环境后
+    sudo ./docker_run_bmnnsdk.sh
+    当前实际目录会映射到容器中的/workspace下面，在容器中进入该代码目录
+    cd yolov5_bm1684
+    make
+    会在当前目录下生成：
+    v5_test
+    
+2、测试
+
+    将 v5_test 拷贝到 BM1684设备上
+    执行
+    ./v5_test ./test_jpgs/ ./yw_5s.bmodel
