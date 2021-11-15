@@ -5,7 +5,7 @@
  * @LastEditors: ZhangHao
  * @Description:
  * @FilePath: /yolov5_inference/main.cpp
- * @zhanghao@yijiahe.com
+ * @954217436@qq.com
  */
 
 #include <dirent.h>
