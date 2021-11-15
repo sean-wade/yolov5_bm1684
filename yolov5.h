@@ -5,7 +5,7 @@
  * @LastEditors: ZhangHao
  * @Description:
  * @FilePath: /yolov5_inference/yolov5.hpp
- * @zhanghao@yijiahe.com
+ * @954217436@qq.com
  */
 
 #ifndef __YOLOV5_HPP__
