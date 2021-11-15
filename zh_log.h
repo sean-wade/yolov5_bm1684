@@ -5,7 +5,7 @@
  * @LastEditors: ZhangHao
  * @Description: 日志类，仅需本头文件即可
  * @FilePath: /edge_ai_frame/business/include/zh_log.h
- * @zhanghao@yijiahe.com
+ * @954217436@qq.com
  */
 #pragma once
 #ifndef _FN_LOG_FILE_H_
